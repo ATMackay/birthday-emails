@@ -136,11 +136,9 @@ def filter_birthdays(csv_filename, today):
         reader = csv.DictReader(file)
         for row in reader:
 
-            month, day, completed = int(row['month']), int(row['day']), int(row['completed'])
-            
+            month, day, completed = int(row['month']), int(row['day']), int(row['completed'])           
             if completed != 0:
                 continue  # Skip already completed entries
-            
             if month == current_month and day == current_day:
                 matching_entries.append(row)
             else:
@@ -184,7 +182,6 @@ def send_birthday_emails(csv_filename, template_filename):
     
 
     updated_rows = []
-
     try:
         for entry in birthdays_today:
             with open(template_filename, 'r', encoding='utf-8') as file:
@@ -219,10 +216,8 @@ def main():
     template_directory = "templates"
     # Randomly select a template
     template_filename = f"{template_directory}/letter{random.randint(1, 2)}.txt"
-    
     # CSV file containing the birthdays
-    csv_filename = "birthdays.csv"
-    
+    csv_filename = "birthdays.csv"    
     # Execute the primary function to process birthdays and send emails
     send_birthday_emails(csv_filename, template_filename)
 
