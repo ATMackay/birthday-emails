@@ -7,34 +7,39 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 class BirthdayEmail:
-    # Constructor method to initialize a new BirthdayEmail object.
-    # It sets up a MIME multipart email message container.    
-    def __init__(self) -> None:
+    """
+    A class to create and manage birthday emails.
+    """
+    def __init__(self):
+        """
+        Initializes a new BirthdayEmail object with an empty email message.
+        """
         self.message = MIMEMultipart()
 
-    # Set up a new email message with sender, recipient, and subject.
-    # Raises exceptions for invalid inputs (empty strings).
     def new_message(self, from_email, recipient_email):
-        if from_email == "":
-            raise Exception("Invalid (empty) recipient")
-        if recipient_email == "":
-            raise Exception("Invalid (empty) recipient")
+        """
+        Sets up a new email message with sender, recipient, and a fixed subject.
+        """
+        if not from_email:
+            raise ValueError("Invalid (empty) sender")
+        if not recipient_email:
+            raise ValueError("Invalid (empty) recipient")
         self.message['From'] = from_email
         self.message['To'] = recipient_email
         self.message['Subject'] = "Happy Birthday!"
 
-
-    # Add an email body to the message.
-    # It attaches a MIMEText part with the email body in plain text format.
-    # Raises an exception if the body text is empty.
     def add_body(self, body):
-        if len(body) < 1:
-            raise Exception("Invalid (empty) email body supplied")
+        """
+        Adds an email body to the message.
+        """
+        if not body:
+            raise ValueError("Invalid (empty) email body supplied")
         self.message.attach(MIMEText(body, 'plain'))
 
-    # Prepare the email for sending.
-    # It returns the sender and recipient email addresses, and the email message as a string.
     def prepare(self):
+        """
+        Prepares the email for sending.
+        """
         from_email = self.message['From']
         to_email = self.message['To']
         text = self.message.as_string()
@@ -43,65 +48,99 @@ class BirthdayEmail:
 
 
 class SMTPServer:
-    # Constructor for initializing an SMTPServer object with server type, user credentials.
-    # It sets up the SMTP server and port based on the specified type.
-    # Raises an exception for unsupported server types.
-    def __init__(self, type, user, password) -> None:
-        self._user = user
-        self._password = password
-        if type == "Outlook": # Add more options here
-            self._smtp_server = "smtp-mail.outlook.com"
-            self._smtp_port = 587
+    """
+    A class to manage SMTP server connection and send emails.
+    """
+    def __init__(self, server_type, user, password):
+        """
+        Initializes an SMTPServer object with server details.
+        """
+        self.user = user
+        self.password = password
+        if server_type == "Outlook":
+            self.smtp_server = "smtp-mail.outlook.com"
+            self.smtp_port = 587
         else:
-            raise Exception("Invalid SMTP server type")
+            raise ValueError("Invalid SMTP server type")
+        # Initialize the host attribute to None. It will be set in the connect method.
+        self.host = None
 
-    # Send an email using the SMTP server.
-    # It requires the sender's email, recipient's email, and the email text (including headers).        
+    def connect(self):
+        """
+        Connects to the SMTP server using the credentials provided during initialization.
+        """
+        try:
+            self.host = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            self.host.starttls()
+            print("Connected to server")
+            self.host.login(self.user, self.password)
+            print(f"Logged in as user {self.user}")
+        except smtplib.SMTPException as e:
+            raise SystemError(e) from e
+
     def send(self, from_email, to_email, text):
-        # Connect to the SMTP server and send the email
-        with smtplib.SMTP(self._smtp_server, self._smtp_port) as server:
-            server.starttls() # Upgrade the connection to secure
-            print("connected to server")
-            server.login(self._user, self._password)
-            print("logged in as user {}".format(self._user))
-            server.sendmail(from_email, to_email, text)
-            print("email sent")
+        """
+        Sends the supplied email via the connected SMTP server.
+        """
+        if not self.host:
+            raise SystemError("SMTP connection not established. Please run connect() first.")
+        try:
+            self.host.sendmail(from_email, to_email, text)
+        except smtplib.SMTPException as e:
+            raise e
+
+    def close(self):
+        """
+        Closes the connection to the SMTP server.
+        """
+        if self.host:
+            self.host.quit()
+            self.host = None
+            print("Disconnected from server")
 
 def read_account():
+    """
+    Reads account details from environment variables.
+    """
     sender_name = os.getenv("MY_NAME")
     if not sender_name:
-        raise Exception("os env MY_NAME is empty")
+        raise EnvironmentError("Environment variable MY_NAME is empty")
     email = os.getenv("MY_EMAIL")
     if not email:
-        raise Exception("os env MY_EMAIL is empty")
+        raise EnvironmentError("Environment variable MY_EMAIL is empty")
     password = os.getenv("MY_EMAIL_PSWD")
     if not password:
-        raise Exception("os env MY_EMAIL_PSWD is empty")
+        raise EnvironmentError("Environment variable MY_EMAIL_PSWD is empty")
     return sender_name, email, password
 
-def filter_birthdays(csv_filename, today): # TODO - improve by eliminating need to return non-essential rows
-    # Get the current day and month
+def filter_birthdays(csv_filename, today):
+    """
+    Filters entries in a CSV file to find and separate birthdays matching today's date.
+    It also separates entries already marked as completed to avoid re-sending emails.
+    
+    Args:
+        csv_filename (str): The path to the CSV file containing birthday information.
+        today (datetime): The current date.
+    
+    Returns:
+        tuple: Two lists of dictionaries, the first with matching entries for today, 
+               and the second with the rest of the entries.
+    """
     current_month = today.month
     current_day = today.day
 
     matching_entries = []
     remaining_entries = []
 
-    # Open and read the CSV file
     with open(csv_filename, mode='r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
-            # Convert month and day from the CSV to integers
-            month = int(row['month'])
-            day = int(row['day'])
 
-            completed = int(row['completed'])
-            if completed != 0:
-                email = row['email']
-                print("Email to {} already sent".format(email))
-                continue
+            month, day, completed = int(row['month']), int(row['day']), int(row['completed'])
             
-            # Check if the entry matches today's date
+            if completed != 0:
+                continue  # Skip already completed entries
+            
             if month == current_month and day == current_day:
                 matching_entries.append(row)
             else:
@@ -109,70 +148,83 @@ def filter_birthdays(csv_filename, today): # TODO - improve by eliminating need 
 
     return matching_entries, remaining_entries
 
-def set_completed(csv_filename, updated_rows, rest):
-    # Write the updated data back to the CSV
-    with open("temp.csv", mode='w', encoding='utf-8', newline='') as file:
-        fieldnames = ['name', 'email', 'month', 'day', 'completed'] 
+def set_completed(csv_filename, updated_rows):
+    """
+    Updates the CSV file to mark selected entries as completed.
+
+    Args:
+        csv_filename (str): The path to the CSV file.
+        updated_rows (list): A list of dictionaries representing the rows to update.
+    """
+    temp_filename = f"{csv_filename}.tmp"
+
+    with open(temp_filename, mode='w', encoding='utf-8', newline='') as file:
+        fieldnames = ['name', 'email', 'month', 'day', 'completed']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(updated_rows)
-        writer.writerows(rest) # TODO - improve
-    # Replace the original file with the updated data
-    os.replace("temp.csv", csv_filename)
+
+    os.replace(temp_filename, csv_filename)
 
 def send_birthday_emails(csv_filename, template_filename):
     """
-    * Read birthdays from CSV file.
-    * Read template from txt files.
-    * Read ENV variables to get user name and email account details.
-    * Send Birthday emails.
-    * Update CSV emails.
+    Main function to orchestrate reading birthdays, sending emails, and updating the CSV.
     """
     today = datetime.now()
-    print("----------", today,"----------")
+    print(f"---------- {today} ----------")
 
-    birthdays_today, rest = filter_birthdays(csv_filename, today)
-    if len(birthdays_today) < 1:
+    birthdays_today, _ = filter_birthdays(csv_filename, today)
+    if not birthdays_today:
         print("No birthday messages to send!")
-        quit()
+        return
 
     sender_name, from_email, password = read_account()
-
-    # Start server
     server = SMTPServer("Outlook", from_email, password)
+    server.connect()
+    
 
     updated_rows = []
 
-    for entry in birthdays_today:
-        name = entry['name']
-        recipient_email = entry['email']
+    try:
+        for entry in birthdays_today:
+            with open(template_filename, 'r', encoding='utf-8') as file:
+                msg = file.read().replace("[NAME]", entry['name']).replace("[SENDER]", sender_name)
 
-        mail = BirthdayEmail()
-        mail.new_message(from_email, recipient_email)
+            # Create email body
+            mail = BirthdayEmail()
+            mail.new_message(from_email, entry['email'])
+            mail.add_body(msg)
+            fr, to, text = mail.prepare()
 
-        # Create personalized email 
-        # Read from template birthday message
-        with open(template_filename, 'r', encoding='utf-8') as file:
-            msg = file.read()
-            msg = msg.replace("[NAME]", name)
-            msg = msg.replace("[SENDER]", sender_name)
+            # Attempt send
+            try:
+                server.send(fr, to, text)
+                entry['completed'] = '1'
+                updated_rows.append(entry)
+                print(f"Email sent to {entry['email']}")
+            except Exception as e:
+                print(f"Failed to send email to {entry['email']}: {e}")
 
-        print("Preparing email from {} ({}) to {}".format(from_email, sender_name, recipient_email))
+        if updated_rows:
+            set_completed(csv_filename, updated_rows + _)
+    finally:
+        server.close()
 
-        # Prepare text body
-        mail.add_body(msg)
-        # Send email
-        fr, to, text = mail.prepare()
-        server.send(fr, to, text)
+def main():
+    """
+    Main execution function: selects a random template and sends personalized birthday emails
+    to recipients in 'birthdays.csv' on the correct day.
+    """
+    # Path to the directory containing email templates
+    template_directory = "templates"
+    # Randomly select a template
+    template_filename = f"{template_directory}/letter{random.randint(1, 2)}.txt"
+    
+    # CSV file containing the birthdays
+    csv_filename = "birthdays.csv"
+    
+    # Execute the primary function to process birthdays and send emails
+    send_birthday_emails(csv_filename, template_filename)
 
-        # Set to completed in CSV
-        entry['completed'] = '1'
-        updated_rows.append(entry)
-
-    set_completed(csv_filename, updated_rows, rest)
-
-if __name__=="__main__":
-    # Pick later template at random
-    template_filepath = f"templates/letter{random.randint(1,2)}.txt"
-    # Send email
-    send_birthday_emails("birthdays.csv", template_filepath)
+if __name__ == "__main__":
+    main()
