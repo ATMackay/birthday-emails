@@ -6,7 +6,7 @@ Set environment variables
 ```
 $ export MY_NAME=<your_name>
 $ export MY_EMAIL=<your_email>
-$ export MY_EMAIL_PSSWD=<your_email_password>
+$ export MY_EMAIL_PSWD=<your_email_password>
 ```
 
 Add a customized `birthdays.csv`
