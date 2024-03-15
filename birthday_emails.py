@@ -215,7 +215,7 @@ def main():
     # Path to the directory containing email templates
     template_directory = "templates"
     # Randomly select a template
-    template_filename = f"{template_directory}/letter{random.randint(1, 2)}.txt"
+    template_filename = f"{template_directory}/letter{random.randint(1, 3)}.txt"
     # CSV file containing the birthdays
     csv_filename = "birthdays.csv"    
     # Execute the primary function to process birthdays and send emails
